@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My App</title>
+    <!-- Αυτά είναι τα tags για να φαίνεται σαν App στο iPhone -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    
+    <!-- Φορτώνει React & Babel online -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        function App() {
+            import { useState, useEffect } from "react";
+
+const STORAGE_KEY = "nerf_shifts_v2";
+
+const GAMES = [
+  { id: "nerf",     label: "Nerf",        emoji: "🔫" },
+  { id: "laser",    label: "Laser Tag",   emoji: "🎯" },
+  { id: "firefly",  label: "Πυγολαμπίδα", emoji: "✨" },
+  { id: "watergun", label: "Water Gun",   emoji: "💦" },
+  { id: "archery",  label: "Τοξοβολία",   emoji: "🏹" },
+  { id: "bubbles",  label: "Bubbles",     emoji: "🫧" },
+  { id: "other",    label: "Άλλο",        emoji: "🎮" },
+];
+
+const blank = () => ({
+  date: new Date().toISOString().slice(0, 10),
+  location: "",
+  games: [],
+  workStart: "",
+  workEnd: "",
+  hasDriving: false,
+  driveStart: "",
+  driveEnd: "",
+  pay: "",
+  notes: "",
+});
+
+function mins(t) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+function diffH(a, b) {
+  if (!a || !b) return null;
+  const d = mins(b) >= mins(a) ? mins(b) - mins(a) : 1440 - mins(a) + mins(b);
+  return +(d / 60).toFixed(2);
+}
+function fmtH(h) {
+  if (h == null) return null;
+  const hr = Math.floor(h), mn = Math.round((h - hr) * 60);
+  return mn > 0 ? `${hr}ω ${mn}λ` : `${hr}ω`;
+}
+function fmtDate(d) {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  const mo = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
+  return `${parseInt(day)} ${mo[parseInt(m)-1]} ${y}`;
+}
+
+function Label({ children }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
+      color: "rgba(255,255,255,0.32)", textTransform: "uppercase", marginBottom: 9 }}>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, children, style }) {
+  return (
+    <div style={{ marginBottom: 24, ...style }}>
+      {label && <Label>{label}</Label>}
+      {children}
+    </div>
+  );
+}
+
+function TxtInput({ style, ...props }) {
+  return (
+    <input {...props} style={{
+      width: "100%",
+      background: "rgba(255,255,255,0.055)",
+      border: "0.5px solid rgba(255,255,255,0.11)",
+      borderRadius: 14, padding: "14px 16px",
+      color: "#f0f0f5", fontSize: 16,
+      fontFamily: "inherit", outline: "none",
+      ...style,
+    }} />
+  );
+}
+
+function TimeBlock({ emoji, title, color, bg, border, startVal, endVal, onStart, onEnd, hasDriving, onToggle }) {
+  const dur = fmtH(diffH(startVal, endVal));
+  const isDrive = onToggle !== undefined;
+  const showPickers = !isDrive || hasDriving;
+
+  return (
+    <div style={{ background: bg, border: `0.5px solid ${border}`, borderRadius: 20, padding: "18px 18px 16px", marginBottom: 16 }}>
+      {/* header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showPickers ? 18 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <span style={{ fontSize: 22 }}>{emoji}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color }}>{title}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {!isDrive && dur && (
+            <span style={{ fontSize: 12, fontWeight: 600, background: `${color}28`, color, borderRadius: 20, padding: "4px 12px" }}>
+              {dur}
+            </span>
+          )}
+          {isDrive && (
+            <button onClick={onToggle} style={{
+              border: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+              padding: "6px 16px", borderRadius: 20,
+              background: hasDriving ? `${color}28` : "rgba(255,255,255,0.07)",
+              color: hasDriving ? color : "rgba(255,255,255,0.32)",
+              transition: "all .18s",
+            }}>
+              {hasDriving ? "✓ Ναι" : "Όχι"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showPickers && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[["Έναρξη", startVal, onStart], ["Λήξη", endVal, onEnd]].map(([lbl, val, fn]) => (
+              <div key={lbl}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 7, fontWeight: 500, letterSpacing: "0.04em" }}>{lbl}</div>
+                <input type="time" value={val} onChange={e => fn(e.target.value)}
+                  style={{
+                    width: "100%",
+                    background: "rgba(0,0,0,0.22)",
+                    border: `0.5px solid ${border}`,
+                    borderRadius: 13, padding: "12px 14px",
+                    color: val ? "#f0f0f5" : "rgba(255,255,255,0.22)",
+                    fontSize: 17, fontFamily: "inherit", outline: "none", fontWeight: 500,
+                  }} />
+              </div>
+            ))}
+          </div>
+          {isDrive && dur && (
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, background: `${color}28`, color, borderRadius: 20, padding: "4px 12px" }}>{dur}</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function NavBar({ onBack, title, actions }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "54px 20px 22px" }}>
+      <button onClick={onBack} style={{
+        border: "none", fontFamily: "inherit",
+        background: "rgba(255,255,255,0.08)", color: "#f0f0f5",
+        borderRadius: 12, padding: "9px 17px", fontSize: 14, fontWeight: 500,
+      }}>← Πίσω</button>
+      <span style={{ fontSize: 17, fontWeight: 600 }}>{title}</span>
+      <div style={{ display: "flex", gap: 8 }}>{actions}</div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [shifts, setShifts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+  });
+  const [view, setView] = useState("list");
+  const [form, setForm] = useState(blank());
+  const [editId, setEditId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [tab, setTab] = useState("shifts");
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts)); }, [shifts]);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleGame = id => set("games", form.games.includes(id) ? form.games.filter(x => x !== id) : [...form.games, id]);
+
+  function saveShift() {
+    const workH = diffH(form.workStart, form.workEnd);
+    const driveH = form.hasDriving ? diffH(form.driveStart, form.driveEnd) : null;
+    const entry = { ...form, id: editId || Date.now(), workH, driveH };
+    setShifts(s => editId ? s.map(x => x.id === editId ? entry : x) : [entry, ...s]);
+    setEditId(null); setForm(blank()); setView("list");
+  }
+  function delShift(id) { setShifts(s => s.filter(x => x.id !== id)); setSelected(null); setView("list"); }
+  function editShift(s) { setForm({ ...s }); setEditId(s.id); setView("add"); }
+
+  const totPay   = shifts.reduce((a, s) => a + (parseFloat(s.pay) || 0), 0);
+  const totWork  = shifts.reduce((a, s) => a + (s.workH  || 0), 0);
+  const totDrive = shifts.reduce((a, s) => a + (s.driveH || 0), 0);
+  const valid = form.location.trim() && form.date;
+
+  return (
+    <div style={{
+      fontFamily: "-apple-system, 'SF Pro Display', BlinkMacSystemFont, sans-serif",
+      background: "#0c0c14", minHeight: "100vh", color: "#f0f0f5",
+      maxWidth: 430, margin: "0 auto",
+    }}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+        input,textarea{outline:none;font-family:inherit}
+        ::-webkit-scrollbar{display:none}
+        button{cursor:pointer;font-family:inherit;transition:all .15s}
+        button:active{transform:scale(.96)}
+        input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.35}
+        input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.35}
+        @keyframes up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        .up{animation:up .22s ease}
+        @keyframes fade{from{opacity:0}to{opacity:1}}
+        .fade{animation:fade .18s ease}
+      `}</style>
+
+      {/* ambient glows */}
+      <div style={{position:"fixed",top:-120,left:-100,width:400,height:400,borderRadius:"50%",
+        background:"radial-gradient(circle,rgba(110,70,255,.12) 0%,transparent 70%)",pointerEvents:"none",zIndex:0}}/>
+      <div style={{position:"fixed",bottom:-80,right:-80,width:300,height:300,borderRadius:"50%",
+        background:"radial-gradient(circle,rgba(255,90,130,.07) 0%,transparent 70%)",pointerEvents:"none",zIndex:0}}/>
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+
+        {/* ══════════ LIST ══════════ */}
+        {view === "list" && (
+          <div className="fade">
+            <div style={{ padding: "56px 22px 0" }}>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.28)", marginBottom: 4 }}>
+                {new Date().toLocaleDateString("el-GR", { weekday:"long", day:"numeric", month:"long" })}
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: -0.8, marginBottom: 24 }}>
+                Οι βάρδιές μου
+              </div>
+
+              {/* stat strip */}
+              {shifts.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 26 }}>
+                  {[
+                    { label: "Σύνολο", val: `€${totPay.toFixed(0)}`, color: "#7dffb3" },
+                    { label: "Εργασία", val: fmtH(totWork) || "—", color: "#b09fff" },
+                    { label: "Οδήγηση", val: fmtH(totDrive) || "—", color: "#ffb347" },
+                  ].map(({ label, val, color }) => (
+                    <div key={label} style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "0.5px solid rgba(255,255,255,0.08)",
+                      borderRadius: 18, padding: "13px 14px",
+                    }}>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</div>
+                      <div style={{ fontSize: 19, fontWeight: 700, color }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* tabs */}
+              <div style={{ display:"flex", gap:4, background:"rgba(255,255,255,0.06)", borderRadius:13, padding:3, marginBottom:22 }}>
+                {[["shifts","Βάρδιες"],["stats","Στατιστικά"]].map(([k,l]) => (
+                  <button key={k} onClick={() => setTab(k)} style={{
+                    flex:1, border:"none", borderRadius:10, padding:"9px 0", fontSize:13, fontWeight:500,
+                    background: tab===k ? "rgba(255,255,255,0.12)" : "transparent",
+                    color: tab===k ? "#f0f0f5" : "rgba(255,255,255,0.36)",
+                  }}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* shifts list */}
+            {tab === "shifts" && (
+              <div style={{ padding: "0 22px 130px" }}>
+                {shifts.length === 0 ? (
+                  <div style={{ textAlign:"center", padding:"72px 0", color:"rgba(255,255,255,0.18)" }}>
+                    <div style={{ fontSize:54, marginBottom:14 }}>🎯</div>
+                    <div style={{ fontSize:17, fontWeight:600 }}>Καμία βάρδια ακόμα</div>
+                    <div style={{ fontSize:13, marginTop:6 }}>Πάτα + για να προσθέσεις</div>
+                  </div>
+                ) : shifts.map(s => (
+                  <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }}
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "0.5px solid rgba(255,255,255,0.08)",
+                      borderRadius: 22, padding: "18px 20px",
+                      marginBottom: 12, cursor: "pointer",
+                    }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontWeight:600, fontSize:16, marginBottom:3 }}>📍 {s.location}</div>
+                        <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>{fmtDate(s.date)}</div>
+                      </div>
+                      {s.pay && (
+                        <div style={{ fontSize:22, fontWeight:700, color:"#7dffb3" }}>€{parseFloat(s.pay).toFixed(0)}</div>
+                      )}
+                    </div>
+                    {s.games?.length > 0 && (
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:10 }}>
+                        {s.games.map(id => {
+                          const g = GAMES.find(x => x.id === id);
+                          return g ? <span key={id} style={{ fontSize:11, padding:"3px 9px", borderRadius:20, background:"rgba(130,100,255,0.15)", color:"#b09fff" }}>{g.emoji} {g.label}</span> : null;
+                        })}
+                      </div>
+                    )}
+                    <div style={{ display:"flex", gap:16, fontSize:12, color:"rgba(255,255,255,0.35)" }}>
+                      {s.workH  != null && <span>🎮 {fmtH(s.workH)}</span>}
+                      {s.driveH != null && <span>🚗 {fmtH(s.driveH)}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* stats */}
+            {tab === "stats" && (
+              <div style={{ padding:"0 22px 130px" }} className="up">
+                <div style={{ background:"rgba(125,255,179,0.06)", border:"0.5px solid rgba(125,255,179,0.15)", borderRadius:22, padding:"22px 22px", marginBottom:12 }}>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.07em" }}>Συνολικά κέρδη</div>
+                  <div style={{ fontSize:46, fontWeight:700, color:"#7dffb3" }}>€{totPay.toFixed(2)}</div>
+                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.28)", marginTop:6 }}>
+                    {shifts.length} βάρδιες · μέσο €{shifts.length ? (totPay/shifts.length).toFixed(1) : 0}/βάρδια
+                  </div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+                  {[
+                    { label:"Εργασία", val:fmtH(totWork)||"—", color:"#b09fff", bg:"rgba(130,100,255,0.07)", border:"rgba(130,100,255,0.17)" },
+                    { label:"Οδήγηση", val:fmtH(totDrive)||"—", color:"#ffb347", bg:"rgba(255,180,60,0.07)", border:"rgba(255,180,60,0.17)" },
+                  ].map(({ label, val, color, bg, border }) => (
+                    <div key={label} style={{ background:bg, border:`0.5px solid ${border}`, borderRadius:20, padding:"18px 18px" }}>
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.07em" }}>{label}</div>
+                      <div style={{ fontSize:28, fontWeight:700, color }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+                {shifts.length > 0 && (() => {
+                  const counts = {};
+                  shifts.forEach(s => (s.games||[]).forEach(g => counts[g]=(counts[g]||0)+1));
+                  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+                  return sorted.length > 0 && (
+                    <div style={{ background:"rgba(255,255,255,0.04)", border:"0.5px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"18px 20px" }}>
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", marginBottom:16, textTransform:"uppercase", letterSpacing:"0.07em" }}>Παιχνίδια</div>
+                      {sorted.map(([id, count]) => {
+                        const g = GAMES.find(x => x.id === id);
+                        const pct = Math.round(count/shifts.length*100);
+                        return g ? (
+                          <div key={id} style={{ marginBottom:14 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                              <span style={{ fontSize:13 }}>{g.emoji} {g.label}</span>
+                              <span style={{ fontSize:13, color:"rgba(255,255,255,0.38)" }}>{count}x</span>
+                            </div>
+                            <div style={{ height:4, background:"rgba(255,255,255,0.07)", borderRadius:4 }}>
+                              <div style={{ height:"100%", width:`${pct}%`, background:"rgba(130,100,255,0.55)", borderRadius:4 }}/>
+                            </div>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* FAB */}
+            <button onClick={() => { setForm(blank()); setEditId(null); setView("add"); }}
+              style={{
+                position:"fixed", bottom:38, right:24,
+                width:62, height:62, borderRadius:"50%", border:"none",
+                background:"linear-gradient(145deg,#8264ff,#bf64ff)",
+                color:"#fff", fontSize:32, lineHeight:1,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                boxShadow:"0 4px 30px rgba(130,100,255,.55)",
+              }}>+</button>
+          </div>
+        )}
+
+        {/* ══════════ ADD / EDIT ══════════ */}
+        {view === "add" && (
+          <div className="up">
+            <NavBar onBack={() => setView("list")} title={editId ? "Επεξεργασία" : "Νέα Βάρδια"} actions={[]} />
+
+            <div style={{ padding: "0 22px 140px" }}>
+
+              <Field label="Ημερομηνία">
+                <TxtInput type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+              </Field>
+
+              <Field label="Τοποθεσία *">
+                <TxtInput type="text" placeholder="π.χ. Βάρη, σπίτι Παπαδόπουλου…"
+                  value={form.location} onChange={e => set("location", e.target.value)} />
+              </Field>
+
+              <Field label="Παιχνίδια — επίλεξε όσα θες">
+                <div style={{ display:"flex", flexWrap:"wrap", gap:9 }}>
+                  {GAMES.map(g => {
+                    const on = form.games.includes(g.id);
+                    return (
+                      <button key={g.id} onClick={() => toggleGame(g.id)} style={{
+                        border: on ? "0.5px solid rgba(130,100,255,.55)" : "0.5px solid rgba(255,255,255,.1)",
+                        background: on ? "rgba(130,100,255,.22)" : "rgba(255,255,255,.05)",
+                        color: on ? "#d0c4ff" : "rgba(255,255,255,.42)",
+                        borderRadius: 20, padding:"10px 16px", fontSize:13, fontWeight:500,
+                      }}>{g.emoji} {g.label}</button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              <TimeBlock
+                emoji="🎮" title="Ώρες Εργασίας"
+                color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)"
+                startVal={form.workStart} endVal={form.workEnd}
+                onStart={v => set("workStart", v)} onEnd={v => set("workEnd", v)}
+              />
+
+              <TimeBlock
+                emoji="🚗" title="Οδήγηση"
+                color="#ffb347" bg="rgba(255,180,60,0.07)" border="rgba(255,180,60,0.2)"
+                startVal={form.driveStart} endVal={form.driveEnd}
+                onStart={v => set("driveStart", v)} onEnd={v => set("driveEnd", v)}
+                hasDriving={form.hasDriving}
+                onToggle={() => setForm(f => ({ ...f, hasDriving:!f.hasDriving, driveStart:"", driveEnd:"" }))}
+              />
+
+              <Field label="Αμοιβή (€)">
+                <TxtInput type="number" placeholder="0.00" value={form.pay}
+                  onChange={e => set("pay", e.target.value)}
+                  style={{ fontSize:20, fontWeight:600, color:"#7dffb3", letterSpacing:"-0.3px" }} />
+              </Field>
+
+              <Field label="Σημειώσεις">
+                <textarea value={form.notes} onChange={e => set("notes", e.target.value)}
+                  placeholder="Οτιδήποτε θες να θυμάσαι…" rows={3}
+                  style={{
+                    width:"100%", resize:"none",
+                    background:"rgba(255,255,255,0.055)",
+                    border:"0.5px solid rgba(255,255,255,0.11)",
+                    borderRadius:14, padding:"14px 16px",
+                    color:"#f0f0f5", fontSize:15, fontFamily:"inherit", outline:"none",
+                  }}/>
+              </Field>
+
+              <button onClick={saveShift} disabled={!valid} style={{
+                width:"100%", padding:"18px", borderRadius:18, border:"none",
+                fontSize:16, fontWeight:600, letterSpacing:"-0.1px",
+                background: valid ? "linear-gradient(135deg,#8264ff,#bf64ff)" : "rgba(255,255,255,0.06)",
+                color: valid ? "#fff" : "rgba(255,255,255,0.22)",
+                boxShadow: valid ? "0 4px 26px rgba(130,100,255,.42)" : "none",
+              }}>
+                {editId ? "Αποθήκευση αλλαγών" : "Αποθήκευση βάρδιας"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════ DETAIL ══════════ */}
+        {view === "detail" && selected && (
+          <div className="up">
+            <NavBar
+              onBack={() => setView("list")}
+              title="Λεπτομέρειες"
+              actions={[
+                <button key="e" onClick={() => editShift(selected)} style={{
+                  border:"none", background:"rgba(130,100,255,.18)", color:"#b09fff",
+                  borderRadius:12, padding:"9px 15px", fontSize:13, fontWeight:500,
+                }}>Επεξεργασία</button>,
+                <button key="d" onClick={() => delShift(selected.id)} style={{
+                  border:"none", background:"rgba(255,60,80,.13)", color:"#ff6b80",
+                  borderRadius:12, padding:"9px 15px", fontSize:13, fontWeight:500,
+                }}>Διαγραφή</button>,
+              ]}
+            />
+
+            <div style={{ padding:"0 22px 90px" }}>
+              <div style={{ marginBottom:26 }}>
+                <div style={{ fontSize:28, fontWeight:700, marginBottom:7 }}>📍 {selected.location}</div>
+                <div style={{ fontSize:14, color:"rgba(255,255,255,0.36)" }}>{fmtDate(selected.date)}</div>
+                {selected.games?.length > 0 && (
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginTop:13 }}>
+                    {selected.games.map(id => {
+                      const g = GAMES.find(x => x.id === id);
+                      return g ? <span key={id} style={{ fontSize:12, padding:"5px 12px", borderRadius:20, background:"rgba(130,100,255,0.17)", color:"#b09fff" }}>{g.emoji} {g.label}</span> : null;
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {selected.pay && (
+                <div style={{
+                  background:"rgba(125,255,179,0.07)", border:"0.5px solid rgba(125,255,179,0.17)",
+                  borderRadius:22, padding:"22px 24px", marginBottom:14, textAlign:"center",
+                }}>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Αμοιβή</div>
+                  <div style={{ fontSize:50, fontWeight:700, color:"#7dffb3", letterSpacing:"-1px" }}>€{parseFloat(selected.pay).toFixed(2)}</div>
+                </div>
+              )}
+
+              <div style={{ display:"grid", gridTemplateColumns: selected.driveH != null ? "1fr 1fr" : "1fr", gap:10, marginBottom:14 }}>
+                {selected.workH != null && (
+                  <div style={{ background:"rgba(130,100,255,0.08)", border:"0.5px solid rgba(130,100,255,0.2)", borderRadius:20, padding:"18px 18px" }}>
+                    <div style={{ fontSize:11, color:"rgba(176,159,255,0.55)", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.07em" }}>🎮 Εργασία</div>
+                    <div style={{ fontSize:28, fontWeight:700, color:"#b09fff", marginBottom:7 }}>{fmtH(selected.workH)}</div>
+                    {selected.workStart && <div style={{ fontSize:12, color:"rgba(255,255,255,0.26)" }}>{selected.workStart} → {selected.workEnd}</div>}
+                  </div>
+                )}
+                {selected.driveH != null && (
+                  <div style={{ background:"rgba(255,180,60,0.08)", border:"0.5px solid rgba(255,180,60,0.2)", borderRadius:20, padding:"18px 18px" }}>
+                    <div style={{ fontSize:11, color:"rgba(255,179,71,0.55)", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.07em" }}>🚗 Οδήγηση</div>
+                    <div style={{ fontSize:28, fontWeight:700, color:"#ffb347", marginBottom:7 }}>{fmtH(selected.driveH)}</div>
+                    {selected.driveStart && <div style={{ fontSize:12, color:"rgba(255,255,255,0.26)" }}>{selected.driveStart} → {selected.driveEnd}</div>}
+                  </div>
+                )}
+              </div>
+
+              {selected.notes && (
+                <div style={{ background:"rgba(255,255,255,0.04)", border:"0.5px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"18px 20px" }}>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:11 }}>Σημειώσεις</div>
+                  <div style={{ fontSize:15, lineHeight:1.65, color:"rgba(255,255,255,0.62)" }}>{selected.notes}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+            return (
+                <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+                    <h1 className="text-2xl font-bold">Η εφαρμογή μου είναι έτοιμη!</h1>
+                    <p>Αυτό τρέχει από το Vercel στο iPhone μου.</p>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
