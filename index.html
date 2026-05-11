@@ -11,10 +11,12 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; background: #0c0c14; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: #0c0c14; -webkit-tap-highlight-color: transparent; font-family: -apple-system, sans-serif; }
         input[type="time"]::-webkit-calendar-picker-indicator,
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .35; }
         ::-webkit-scrollbar { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -41,14 +43,14 @@
         });
 
         // Helpers
-        const mins = t => { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        const mins = t => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
         const diffH = (a, b) => {
-            if (!a || !b) return null;
+            if (!a || !b) return 0;
             const d = mins(b) >= mins(a) ? mins(b) - mins(a) : 1440 - mins(a) + mins(b);
             return +(d / 60).toFixed(2);
         };
         const fmtH = h => {
-            if (h == null) return null;
+            if (!h || h <= 0) return "0ω";
             const hr = Math.floor(h), mn = Math.round((h - hr) * 60);
             return mn > 0 ? `${hr}ω ${mn}λ` : `${hr}ω`;
         };
@@ -59,49 +61,27 @@
             return `${parseInt(day)} ${mo[parseInt(m)-1]} ${y}`;
         };
 
-        // UI Components
-        const Field = ({ label, children }) => (
-            <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 9 }}>{label}</div>
-                {children}
-            </div>
-        );
-
-        const TxtInput = ({ style, ...props }) => (
-            <input {...props} style={{
-                width: "100%", background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)",
-                borderRadius: 14, padding: "14px 16px", color: "#f0f0f5", fontSize: 16, outline: "none", ...style
-            }} />
-        );
-
+        // Components
         const TimeBlock = ({ emoji, title, color, bg, border, startVal, endVal, onStart, onEnd, hasDriving, onToggle }) => {
-            const dur = fmtH(diffH(startVal, endVal));
             const isDrive = onToggle !== undefined;
-            const showPickers = !isDrive || hasDriving;
-
+            const show = !isDrive || hasDriving;
             return (
                 <div style={{ background: bg, border: `0.5px solid ${border}`, borderRadius: 20, padding: "18px", marginBottom: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showPickers ? 18 : 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                            <span style={{ fontSize: 22 }}>{emoji}</span>
-                            <span style={{ fontSize: 15, fontWeight: 600, color }}>{title}</span>
+                    <div className="flex items-center justify-between" style={{ marginBottom: show ? 18 : 0 }}>
+                        <div className="flex items-center gap-2">
+                            <span>{emoji}</span>
+                            <span style={{ color, fontWeight: 600 }}>{title}</span>
                         </div>
                         {isDrive ? (
-                            <button onClick={onToggle} style={{ border: "none", background: hasDriving ? `${color}28` : "rgba(255,255,255,0.07)", color: hasDriving ? color : "rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, fontSize: 13 }}>
+                            <button onClick={onToggle} className="px-4 py-1 rounded-full text-sm" style={{ background: hasDriving ? `${color}44` : "#222", color: hasDriving ? color : "#666" }}>
                                 {hasDriving ? "✓ Ναι" : "Όχι"}
                             </button>
-                        ) : dur && <span style={{ fontSize: 12, fontWeight: 600, background: `${color}28`, color, borderRadius: 20, padding: "4px 12px" }}>{dur}</span>}
+                        ) : <span className="text-xs px-3 py-1 rounded-full" style={{ background: `${color}22`, color }}>{fmtH(diffH(startVal, endVal))}</span>}
                     </div>
-                    {showPickers && (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                            <div>
-                                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginBottom: 5 }}>Έναρξη</div>
-                                <input type="time" value={startVal} onChange={e => onStart(e.target.value)} style={{ width: "100%", background: "rgba(0,0,0,0.2)", border: `0.5px solid ${border}`, borderRadius: 12, padding: 12, color: "#fff", outline: "none" }} />
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginBottom: 5 }}>Λήξη</div>
-                                <input type="time" value={endVal} onChange={e => onEnd(e.target.value)} style={{ width: "100%", background: "rgba(0,0,0,0.2)", border: `0.5px solid ${border}`, borderRadius: 12, padding: 12, color: "#fff", outline: "none" }} />
-                            </div>
+                    {show && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <input type="time" value={startVal} onChange={e => onStart(e.target.value)} className="bg-black/20 border border-white/10 rounded-xl p-3 text-white outline-none" />
+                            <input type="time" value={endVal} onChange={e => onEnd(e.target.value)} className="bg-black/20 border border-white/10 rounded-xl p-3 text-white outline-none" />
                         </div>
                     )}
                 </div>
@@ -111,81 +91,137 @@
         function App() {
             const [shifts, setShifts] = useState(() => JSON.parse(localStorage.getItem(STORAGE_KEY)) || []);
             const [view, setView] = useState("list");
+            const [tab, setTab] = useState("shifts");
             const [form, setForm] = useState(blank());
             const [selected, setSelected] = useState(null);
 
             useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts)); }, [shifts]);
 
+            const totPay = shifts.reduce((a, s) => a + (parseFloat(s.pay) || 0), 0);
+            const totWork = shifts.reduce((a, s) => a + (parseFloat(s.workH) || 0), 0);
+            const totDrive = shifts.reduce((a, s) => a + (parseFloat(s.driveH) || 0), 0);
+
             const save = () => {
                 const workH = diffH(form.workStart, form.workEnd);
-                const driveH = form.hasDriving ? diffH(form.driveStart, form.driveEnd) : null;
+                const driveH = form.hasDriving ? diffH(form.driveStart, form.driveEnd) : 0;
                 const entry = { ...form, id: Date.now(), workH, driveH };
                 setShifts([entry, ...shifts]);
                 setView("list");
             };
 
             return (
-                <div style={{ fontFamily: "-apple-system, sans-serif", color: "#f0f0f5", maxWidth: 430, margin: "0 auto", paddingBottom: 100 }}>
+                <div className="max-w-md mx-auto min-h-screen text-white p-6 relative">
                     {view === "list" && (
-                        <div style={{ padding: 22 }}>
-                            <h1 style={{ fontSize: 32, fontWeight: 700, marginTop: 40, marginBottom: 24 }}>Βάρδιες</h1>
-                            {shifts.map(s => (
-                                <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: 18, marginBottom: 12 }}>
-                                    <div style={{ display:"flex", justifyContent:"space-between" }}>
-                                        <div style={{ fontWeight:600 }}>📍 {s.location}</div>
-                                        <div style={{ color: "#7dffb3", fontWeight: 700 }}>€{s.pay}</div>
-                                    </div>
-                                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>{fmtDate(s.date)}</div>
+                        <div className="fade-in">
+                            <h1 className="text-3xl font-bold mt-10 mb-6">Οι βάρδιές μου</h1>
+                            
+                            {/* Stats Strip */}
+                            <div className="grid grid-cols-3 gap-3 mb-6">
+                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                                    <div className="text-[10px] text-white/30 uppercase">Σύνολο</div>
+                                    <div className="text-lg font-bold text-green-400">€{totPay.toFixed(0)}</div>
                                 </div>
-                            ))}
-                            <button onClick={() => { setForm(blank()); setView("add"); }} style={{ position: "fixed", bottom: 30, right: 24, width: 64, height: 64, borderRadius: 32, background: "#8264ff", color: "#fff", fontSize: 32, border: "none", boxShadow: "0 10px 20px rgba(0,0,0,0.3)" }}>+</button>
+                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                                    <div className="text-[10px] text-white/30 uppercase">Εργασία</div>
+                                    <div className="text-lg font-bold text-purple-400">{fmtH(totWork)}</div>
+                                </div>
+                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                                    <div className="text-[10px] text-white/30 uppercase">Οδήγηση</div>
+                                    <div className="text-lg font-bold text-orange-400">{fmtH(totDrive)}</div>
+                                </div>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex bg-white/5 p-1 rounded-xl mb-6">
+                                <button onClick={() => setTab("shifts")} className={`flex-1 py-2 rounded-lg text-sm font-medium ${tab === "shifts" ? 'bg-white/10 text-white' : 'text-white/40'}`}>Βάρδιες</button>
+                                <button onClick={() => setTab("stats")} className={`flex-1 py-2 rounded-lg text-sm font-medium ${tab === "stats" ? 'bg-white/10 text-white' : 'text-white/40'}`}>Στατιστικά</button>
+                            </div>
+
+                            {tab === "shifts" ? (
+                                <div>
+                                    {shifts.map(s => (
+                                        <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }} className="bg-white/5 border border-white/10 p-5 rounded-3xl mb-3">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="font-semibold text-lg">📍 {s.location}</div>
+                                                    <div className="text-xs text-white/30">{fmtDate(s.date)}</div>
+                                                </div>
+                                                <div className="text-xl font-bold text-green-400">€{s.pay}</div>
+                                            </div>
+                                            <div className="flex gap-3 text-xs text-white/40">
+                                                <span>🎮 {fmtH(s.workH)}</span>
+                                                {s.driveH > 0 && <span>🚗 {fmtH(s.driveH)}</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl">
+                                    <div className="mb-6">
+                                        <div className="text-sm text-white/40 mb-1">Συνολικά Κέρδη</div>
+                                        <div className="text-5xl font-black text-green-400">€{totPay.toFixed(2)}</div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-white/60">Σύνολο Βαρδιών</span>
+                                            <span className="font-bold">{shifts.length}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-white/60">Μέση Αμοιβή</span>
+                                            <span className="font-bold">€{shifts.length ? (totPay/shifts.length).toFixed(1) : 0}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <button onClick={() => { setForm(blank()); setView("add"); }} className="fixed bottom-8 right-6 w-16 h-16 rounded-full bg-purple-600 text-3xl shadow-2xl">+</button>
                         </div>
                     )}
 
                     {view === "add" && (
-                        <div style={{ padding: 22 }}>
-                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop: 40, marginBottom: 30 }}>
-                                <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#8264ff" }}>← Πίσω</button>
-                                <h2 style={{ fontWeight: 700 }}>Νέα Βάρδια</h2>
-                                <div style={{ width: 40 }}></div>
-                            </div>
-
-                            <Field label="Ημερομηνία"><TxtInput type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} /></Field>
-                            <Field label="Τοποθεσία"><TxtInput placeholder="Πού;" value={form.location} onChange={e => setForm({...form, location: e.target.value})} /></Field>
+                        <div className="fade-in">
+                            <button onClick={() => setView("list")} className="text-purple-500 mb-6 mt-6">← Πίσω</button>
+                            <h2 className="text-2xl font-bold mb-8">Νέα Βάρδια</h2>
                             
-                            <Field label="Παιχνίδια">
-                                <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                                    {GAMES.map(g => (
-                                        <button key={g.id} onClick={() => {
-                                            const gs = form.games.includes(g.id) ? form.games.filter(x => x !== g.id) : [...form.games, g.id];
-                                            setForm({...form, games: gs});
-                                        }} style={{ padding: "8px 12px", borderRadius: 15, border: "0.5px solid rgba(255,255,255,0.1)", background: form.games.includes(g.id) ? "rgba(130,100,255,0.2)" : "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13 }}>
-                                            {g.emoji} {g.label}
-                                        </button>
-                                    ))}
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] text-white/30 uppercase mb-2">Ημερομηνία & Τοποθεσία</label>
+                                    <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 mb-3" />
+                                    <input placeholder="Πού ήταν η βάρδια;" value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4" />
                                 </div>
-                            </Field>
 
-                            <TimeBlock emoji="🎮" title="Εργασία" color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)" startVal={form.workStart} endVal={form.workEnd} onStart={v => setForm({...form, workStart:v})} onEnd={v => setForm({...form, workEnd:v})} />
-                            
-                            <TimeBlock emoji="🚗" title="Οδήγηση" color="#ffb347" bg="rgba(255,180,60,0.07)" border="rgba(255,180,60,0.2)" startVal={form.driveStart} endVal={form.driveEnd} onStart={v => setForm({...form, driveStart:v})} onEnd={v => setForm({...form, driveEnd:v})} hasDriving={form.hasDriving} onToggle={() => setForm({...form, hasDriving: !form.hasDriving})} />
+                                <TimeBlock emoji="🎮" title="Εργασία" color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)" startVal={form.workStart} endVal={form.workEnd} onStart={v => setForm({...form, workStart:v})} onEnd={v => setForm({...form, workEnd:v})} />
+                                <TimeBlock emoji="🚗" title="Οδήγηση" color="#ffb347" bg="rgba(255,180,60,0.07)" border="rgba(255,180,60,0.2)" startVal={form.driveStart} endVal={form.driveEnd} onStart={v => setForm({...form, driveStart:v})} onEnd={v => setForm({...form, driveEnd:v})} hasDriving={form.hasDriving} onToggle={() => setForm({...form, hasDriving: !form.hasDriving})} />
 
-                            <Field label="Αμοιβή (€)"><TxtInput type="number" value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} /></Field>
-                            
-                            <button onClick={save} style={{ width: "100%", padding: 18, borderRadius: 16, background: "#8264ff", border: "none", color: "#fff", fontWeight: 700, marginTop: 20 }}>Αποθήκευση</button>
+                                <div>
+                                    <label className="block text-[10px] text-white/30 uppercase mb-2">Αμοιβή (€)</label>
+                                    <input type="number" value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-2xl font-bold text-green-400" />
+                                </div>
+
+                                <button onClick={save} className="w-full py-5 rounded-2xl bg-purple-600 font-bold text-lg shadow-lg">Αποθήκευση</button>
+                            </div>
                         </div>
                     )}
 
                     {view === "detail" && selected && (
-                        <div style={{ padding: 22 }}>
-                            <button onClick={() => setView("list")} style={{ marginTop: 40, color: "#8264ff", background: "none", border: "none" }}>← Πίσω</button>
-                            <h1 style={{ fontSize: 32, marginTop: 20 }}>📍 {selected.location}</h1>
-                            <div style={{ fontSize: 48, fontWeight: 800, color: "#7dffb3", margin: "20px 0" }}>€{selected.pay}</div>
-                            <div style={{ background: "rgba(255,255,255,0.05)", padding: 20, borderRadius: 20 }}>
-                                <div style={{ marginBottom: 10 }}>🎮 Εργασία: {fmtH(selected.workH)}</div>
-                                {selected.hasDriving && <div>🚗 Οδήγηση: {fmtH(selected.driveH)}</div>}
+                        <div className="fade-in">
+                            <button onClick={() => setView("list")} className="text-purple-500 mb-6 mt-6">← Πίσω</button>
+                            <div className="bg-white/5 border border-white/10 p-8 rounded-[40px] text-center">
+                                <div className="text-white/40 text-sm mb-2">{fmtDate(selected.date)}</div>
+                                <h1 className="text-3xl font-bold mb-6">📍 {selected.location}</h1>
+                                <div className="text-6xl font-black text-green-400 mb-8">€{selected.pay}</div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-purple-500/10 p-4 rounded-2xl">
+                                        <div className="text-[10px] text-purple-400 uppercase">Εργασία</div>
+                                        <div className="text-xl font-bold">{fmtH(selected.workH)}</div>
+                                    </div>
+                                    <div className="bg-orange-500/10 p-4 rounded-2xl">
+                                        <div className="text-[10px] text-orange-400 uppercase">Οδήγηση</div>
+                                        <div className="text-xl font-bold">{fmtH(selected.driveH)}</div>
+                                    </div>
+                                </div>
                             </div>
-                            <button onClick={() => { setShifts(shifts.filter(x => x.id !== selected.id)); setView("list"); }} style={{ marginTop: 40, color: "#ff6b80", background: "none", border: "none" }}>Διαγραφή βάρδιας</button>
+                            <button onClick={() => { setShifts(shifts.filter(x => x.id !== selected.id)); setView("list"); }} className="w-full mt-10 text-red-500/50 text-sm">Διαγραφή βάρδιας</button>
                         </div>
                     )}
                 </div>
