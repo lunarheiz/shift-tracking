@@ -15,7 +15,7 @@
         input[type="time"]::-webkit-calendar-picker-indicator,
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .35; }
         ::-webkit-scrollbar { display: none; }
-        .fade-in { animation: fadeIn 0.3s ease-in; }
+        .fade-in { animation: fadeIn 0.2s ease-in; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
@@ -24,25 +24,14 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const STORAGE_KEY = "nerf_shifts_v2";
-
-        const GAMES = [
-            { id: "nerf", label: "Nerf", emoji: "🔫" },
-            { id: "laser", label: "Laser Tag", emoji: "🎯" },
-            { id: "firefly", label: "Πυγολαμπίδα", emoji: "✨" },
-            { id: "watergun", label: "Water Gun", emoji: "💦" },
-            { id: "archery", label: "Τοξοβολία", emoji: "🏹" },
-            { id: "bubbles", label: "Bubbles", emoji: "🫧" },
-            { id: "other", label: "Άλλο", emoji: "🎮" },
-        ];
+        const STORAGE_KEY = "nerf_shifts_v3";
 
         const blank = () => ({
             date: new Date().toISOString().slice(0, 10),
-            location: "", games: [], workStart: "", workEnd: "",
-            hasDriving: false, driveStart: "", driveEnd: "", pay: "", notes: "",
+            location: "", workStart: "", workEnd: "",
+            hasDriving: false, driveDuration: "", tips: "", pay: "",
         });
 
-        // Helpers
         const mins = t => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
         const diffH = (a, b) => {
             if (!a || !b) return 0;
@@ -50,42 +39,8 @@
             return +(d / 60).toFixed(2);
         };
         const fmtH = h => {
-            if (!h || h <= 0) return "0ω";
             const hr = Math.floor(h), mn = Math.round((h - hr) * 60);
             return mn > 0 ? `${hr}ω ${mn}λ` : `${hr}ω`;
-        };
-        const fmtDate = d => {
-            if (!d) return "";
-            const [y, m, day] = d.split("-");
-            const mo = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
-            return `${parseInt(day)} ${mo[parseInt(m)-1]} ${y}`;
-        };
-
-        // Components
-        const TimeBlock = ({ emoji, title, color, bg, border, startVal, endVal, onStart, onEnd, hasDriving, onToggle }) => {
-            const isDrive = onToggle !== undefined;
-            const show = !isDrive || hasDriving;
-            return (
-                <div style={{ background: bg, border: `0.5px solid ${border}`, borderRadius: 20, padding: "18px", marginBottom: 16 }}>
-                    <div className="flex items-center justify-between" style={{ marginBottom: show ? 18 : 0 }}>
-                        <div className="flex items-center gap-2">
-                            <span>{emoji}</span>
-                            <span style={{ color, fontWeight: 600 }}>{title}</span>
-                        </div>
-                        {isDrive ? (
-                            <button onClick={onToggle} className="px-4 py-1 rounded-full text-sm" style={{ background: hasDriving ? `${color}44` : "#222", color: hasDriving ? color : "#666" }}>
-                                {hasDriving ? "✓ Ναι" : "Όχι"}
-                            </button>
-                        ) : <span className="text-xs px-3 py-1 rounded-full" style={{ background: `${color}22`, color }}>{fmtH(diffH(startVal, endVal))}</span>}
-                    </div>
-                    {show && (
-                        <div className="grid grid-cols-2 gap-3">
-                            <input type="time" value={startVal} onChange={e => onStart(e.target.value)} className="bg-black/20 border border-white/10 rounded-xl p-3 text-white outline-none" />
-                            <input type="time" value={endVal} onChange={e => onEnd(e.target.value)} className="bg-black/20 border border-white/10 rounded-xl p-3 text-white outline-none" />
-                        </div>
-                    )}
-                </div>
-            );
         };
 
         function App() {
@@ -98,130 +53,147 @@
             useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts)); }, [shifts]);
 
             const totPay = shifts.reduce((a, s) => a + (parseFloat(s.pay) || 0), 0);
+            const totTips = shifts.reduce((a, s) => a + (parseFloat(s.tips) || 0), 0);
             const totWork = shifts.reduce((a, s) => a + (parseFloat(s.workH) || 0), 0);
-            const totDrive = shifts.reduce((a, s) => a + (parseFloat(s.driveH) || 0), 0);
+            const totDrive = shifts.reduce((a, s) => a + (parseFloat(s.driveDuration) || 0), 0);
 
             const save = () => {
                 const workH = diffH(form.workStart, form.workEnd);
-                const driveH = form.hasDriving ? diffH(form.driveStart, form.driveEnd) : 0;
-                const entry = { ...form, id: Date.now(), workH, driveH };
+                const entry = { ...form, id: Date.now(), workH };
                 setShifts([entry, ...shifts]);
                 setView("list");
             };
 
             return (
-                <div className="max-w-md mx-auto min-h-screen text-white p-6 relative">
+                <div className="max-w-md mx-auto min-h-screen text-white p-6 relative pb-24">
                     {view === "list" && (
                         <div className="fade-in">
-                            <h1 className="text-3xl font-bold mt-10 mb-6">Οι βάρδιές μου</h1>
+                            <h1 className="text-3xl font-bold mt-10 mb-6 italic">Shift Log</h1>
                             
-                            {/* Stats Strip */}
-                            <div className="grid grid-cols-3 gap-3 mb-6">
-                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                                    <div className="text-[10px] text-white/30 uppercase">Σύνολο</div>
-                                    <div className="text-lg font-bold text-green-400">€{totPay.toFixed(0)}</div>
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                    <div className="text-[10px] text-white/30 uppercase font-bold">Σύνολο (+Tips)</div>
+                                    <div className="text-2xl font-black text-green-400">€{(totPay + totTips).toFixed(0)}</div>
                                 </div>
-                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                                    <div className="text-[10px] text-white/30 uppercase">Εργασία</div>
-                                    <div className="text-lg font-bold text-purple-400">{fmtH(totWork)}</div>
-                                </div>
-                                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                                    <div className="text-[10px] text-white/30 uppercase">Οδήγηση</div>
-                                    <div className="text-lg font-bold text-orange-400">{fmtH(totDrive)}</div>
+                                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                    <div className="text-[10px] text-white/30 uppercase font-bold">Μόνο Tips</div>
+                                    <div className="text-2xl font-black text-yellow-400">€{totTips.toFixed(0)}</div>
                                 </div>
                             </div>
 
-                            {/* Tabs */}
                             <div className="flex bg-white/5 p-1 rounded-xl mb-6">
-                                <button onClick={() => setTab("shifts")} className={`flex-1 py-2 rounded-lg text-sm font-medium ${tab === "shifts" ? 'bg-white/10 text-white' : 'text-white/40'}`}>Βάρδιες</button>
-                                <button onClick={() => setTab("stats")} className={`flex-1 py-2 rounded-lg text-sm font-medium ${tab === "stats" ? 'bg-white/10 text-white' : 'text-white/40'}`}>Στατιστικά</button>
+                                <button onClick={() => setTab("shifts")} className={`flex-1 py-2 rounded-lg text-sm font-bold ${tab === "shifts" ? 'bg-white/10 text-white' : 'text-white/40'}`}>ΒΑΡΔΙΕΣ</button>
+                                <button onClick={() => setTab("stats")} className={`flex-1 py-2 rounded-lg text-sm font-bold ${tab === "stats" ? 'bg-white/10 text-white' : 'text-white/40'}`}>STATS</button>
                             </div>
 
                             {tab === "shifts" ? (
-                                <div>
+                                <div className="space-y-3">
                                     {shifts.map(s => (
-                                        <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }} className="bg-white/5 border border-white/10 p-5 rounded-3xl mb-3">
-                                            <div className="flex justify-between items-start mb-2">
+                                        <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }} className="bg-white/5 border border-white/10 p-5 rounded-3xl">
+                                            <div className="flex justify-between items-start">
                                                 <div>
-                                                    <div className="font-semibold text-lg">📍 {s.location}</div>
-                                                    <div className="text-xs text-white/30">{fmtDate(s.date)}</div>
+                                                    <div className="font-bold text-lg">📍 {s.location}</div>
+                                                    <div className="text-xs text-white/30">{s.date}</div>
                                                 </div>
-                                                <div className="text-xl font-bold text-green-400">€{s.pay}</div>
-                                            </div>
-                                            <div className="flex gap-3 text-xs text-white/40">
-                                                <span>🎮 {fmtH(s.workH)}</span>
-                                                {s.driveH > 0 && <span>🚗 {fmtH(s.driveH)}</span>}
+                                                <div className="text-right">
+                                                    <div className="text-xl font-black text-green-400">€{parseFloat(s.pay) + (parseFloat(s.tips) || 0)}</div>
+                                                    {s.tips > 0 && <div className="text-[10px] text-yellow-500">incl. €{s.tips} tips</div>}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl">
-                                    <div className="mb-6">
-                                        <div className="text-sm text-white/40 mb-1">Συνολικά Κέρδη</div>
-                                        <div className="text-5xl font-black text-green-400">€{totPay.toFixed(2)}</div>
+                                <div className="space-y-4 fade-in">
+                                    <div className="bg-purple-600/10 border border-purple-500/20 p-6 rounded-3xl">
+                                        <div className="text-sm text-purple-400 mb-1 font-bold">Συνολικές Ώρες</div>
+                                        <div className="text-4xl font-black">{fmtH(totWork + totDrive)}</div>
+                                        <div className="text-xs text-white/40 mt-2">Εργασία: {fmtH(totWork)} | Οδήγηση: {fmtH(totDrive)}</div>
                                     </div>
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-white/60">Σύνολο Βαρδιών</span>
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl">
+                                        <div className="flex justify-between mb-4 pb-4 border-b border-white/5">
+                                            <span className="text-white/40">Βάρδιες</span>
                                             <span className="font-bold">{shifts.length}</span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-white/60">Μέση Αμοιβή</span>
-                                            <span className="font-bold">€{shifts.length ? (totPay/shifts.length).toFixed(1) : 0}</span>
+                                        <div className="flex justify-between">
+                                            <span className="text-white/40">Μέσος Όρος / Βάρδια</span>
+                                            <span className="font-bold text-green-400">€{shifts.length ? ((totPay + totTips)/shifts.length).toFixed(1) : 0}</span>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            <button onClick={() => { setForm(blank()); setView("add"); }} className="fixed bottom-8 right-6 w-16 h-16 rounded-full bg-purple-600 text-3xl shadow-2xl">+</button>
+                            <button onClick={() => { setForm(blank()); setView("add"); }} className="fixed bottom-8 right-6 w-16 h-16 rounded-full bg-purple-600 text-3xl shadow-2xl font-bold">+</button>
                         </div>
                     )}
 
                     {view === "add" && (
                         <div className="fade-in">
-                            <button onClick={() => setView("list")} className="text-purple-500 mb-6 mt-6">← Πίσω</button>
-                            <h2 className="text-2xl font-bold mb-8">Νέα Βάρδια</h2>
+                            <div className="flex justify-between items-center mt-10 mb-8">
+                                <button onClick={() => setView("list")} className="text-purple-500 font-bold text-sm">ΑΚΥΡΟ</button>
+                                <h2 className="text-xl font-black uppercase tracking-widest">Νέα Βάρδια</h2>
+                                <button onClick={save} className="bg-purple-600 px-4 py-2 rounded-xl font-bold text-sm">ΤΕΛΟΣ</button>
+                            </div>
                             
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-[10px] text-white/30 uppercase mb-2">Ημερομηνία & Τοποθεσία</label>
-                                    <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 mb-3" />
-                                    <input placeholder="Πού ήταν η βάρδια;" value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4" />
+                            <div className="space-y-4">
+                                <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white" />
+                                <input placeholder="Τοποθεσία" value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white" />
+                                
+                                <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
+                                    <div className="text-[10px] text-white/30 font-bold uppercase mb-4">Ωράριο Εργασίας</div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="time" value={form.workStart} onChange={e => setForm({...form, workStart: e.target.value})} className="bg-black/40 p-3 rounded-xl border border-white/10" />
+                                        <input type="time" value={form.workEnd} onChange={e => setForm({...form, workEnd: e.target.value})} className="bg-black/40 p-3 rounded-xl border border-white/10" />
+                                    </div>
                                 </div>
 
-                                <TimeBlock emoji="🎮" title="Εργασία" color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)" startVal={form.workStart} endVal={form.workEnd} onStart={v => setForm({...form, workStart:v})} onEnd={v => setForm({...form, workEnd:v})} />
-                                <TimeBlock emoji="🚗" title="Οδήγηση" color="#ffb347" bg="rgba(255,180,60,0.07)" border="rgba(255,180,60,0.2)" startVal={form.driveStart} endVal={form.driveEnd} onStart={v => setForm({...form, driveStart:v})} onEnd={v => setForm({...form, driveEnd:v})} hasDriving={form.hasDriving} onToggle={() => setForm({...form, hasDriving: !form.hasDriving})} />
-
-                                <div>
-                                    <label className="block text-[10px] text-white/30 uppercase mb-2">Αμοιβή (€)</label>
-                                    <input type="number" value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-2xl font-bold text-green-400" />
+                                <div className="bg-orange-500/5 border border-orange-500/20 rounded-3xl p-5">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-orange-400 font-bold text-sm uppercase">Οδήγηση</span>
+                                        <button onClick={() => setForm({...form, hasDriving: !form.hasDriving})} className={`px-4 py-1 rounded-full text-xs font-bold ${form.hasDriving ? 'bg-orange-500 text-black' : 'bg-white/5 text-white/40'}`}>
+                                            {form.hasDriving ? 'ΝΑΙ' : 'ΟΧΙ'}
+                                        </button>
+                                    </div>
+                                    {form.hasDriving && (
+                                        <input type="number" step="0.5" placeholder="Πόσες ώρες; (π.χ. 1.5)" value={form.driveDuration} onChange={e => setForm({...form, driveDuration: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+                                    )}
                                 </div>
 
-                                <button onClick={save} className="w-full py-5 rounded-2xl bg-purple-600 font-bold text-lg shadow-lg">Αποθήκευση</button>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-white/5 border border-white/10 rounded-3xl p-4">
+                                        <div className="text-[10px] text-white/30 font-bold uppercase mb-2">Βασική (€)</div>
+                                        <input type="number" value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} className="w-full bg-transparent text-xl font-bold outline-none" />
+                                    </div>
+                                    <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-3xl p-4">
+                                        <div className="text-[10px] text-yellow-500/50 font-bold uppercase mb-2">Tips (€)</div>
+                                        <input type="number" value={form.tips} onChange={e => setForm({...form, tips: e.target.value})} className="w-full bg-transparent text-xl font-bold text-yellow-400 outline-none" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
                     {view === "detail" && selected && (
                         <div className="fade-in">
-                            <button onClick={() => setView("list")} className="text-purple-500 mb-6 mt-6">← Πίσω</button>
-                            <div className="bg-white/5 border border-white/10 p-8 rounded-[40px] text-center">
-                                <div className="text-white/40 text-sm mb-2">{fmtDate(selected.date)}</div>
-                                <h1 className="text-3xl font-bold mb-6">📍 {selected.location}</h1>
-                                <div className="text-6xl font-black text-green-400 mb-8">€{selected.pay}</div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-purple-500/10 p-4 rounded-2xl">
-                                        <div className="text-[10px] text-purple-400 uppercase">Εργασία</div>
-                                        <div className="text-xl font-bold">{fmtH(selected.workH)}</div>
+                            <button onClick={() => setView("list")} className="text-purple-500 font-bold mt-10 mb-6">← ΠΙΣΩ</button>
+                            <div className="bg-white/5 border border-white/10 p-8 rounded-[40px] relative overflow-hidden">
+                                <div className="text-white/40 text-sm mb-2">{selected.date}</div>
+                                <h1 className="text-3xl font-black mb-4 italic uppercase">{selected.location}</h1>
+                                <div className="text-6xl font-black text-green-400 mb-2">€{parseFloat(selected.pay) + (parseFloat(selected.tips) || 0)}</div>
+                                {selected.tips > 0 && <div className="text-yellow-500 font-bold mb-8">περιλαμβάνει €{selected.tips} tips</div>}
+                                
+                                <div className="grid grid-cols-2 gap-3 text-left">
+                                    <div className="bg-white/5 p-4 rounded-2xl">
+                                        <div className="text-[10px] text-white/30 uppercase font-bold">Εργασία</div>
+                                        <div className="text-lg font-bold">{fmtH(selected.workH)}</div>
                                     </div>
-                                    <div className="bg-orange-500/10 p-4 rounded-2xl">
-                                        <div className="text-[10px] text-orange-400 uppercase">Οδήγηση</div>
-                                        <div className="text-xl font-bold">{fmtH(selected.driveH)}</div>
+                                    <div className="bg-white/5 p-4 rounded-2xl">
+                                        <div className="text-[10px] text-white/30 uppercase font-bold">Οδήγηση</div>
+                                        <div className="text-lg font-bold">{selected.driveDuration || 0}ω</div>
                                     </div>
                                 </div>
+                                <button onClick={() => { setShifts(shifts.filter(x => x.id !== selected.id)); setView("list"); }} className="mt-10 text-red-500/30 text-xs font-bold uppercase tracking-tighter">Διαγραφή Βάρδιας</button>
                             </div>
-                            <button onClick={() => { setShifts(shifts.filter(x => x.id !== selected.id)); setView("list"); }} className="w-full mt-10 text-red-500/50 text-sm">Διαγραφή βάρδιας</button>
                         </div>
                     )}
                 </div>
