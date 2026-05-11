@@ -6,20 +6,22 @@
     <title>Shift Tracker</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Shifts">
-    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #0c0c14; -webkit-tap-highlight-color: transparent; }
+        input[type="time"]::-webkit-calendar-picker-indicator,
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .35; }
+        ::-webkit-scrollbar { display: none; }
+    </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // Προσαρμογή των Hooks για browser
         const { useState, useEffect } = React;
-
         const STORAGE_KEY = "nerf_shifts_v2";
 
         const GAMES = [
@@ -34,238 +36,156 @@
 
         const blank = () => ({
             date: new Date().toISOString().slice(0, 10),
-            location: "",
-            games: [],
-            workStart: "",
-            workEnd: "",
-            hasDriving: false,
-            driveStart: "",
-            driveEnd: "",
-            pay: "",
-            notes: "",
+            location: "", games: [], workStart: "", workEnd: "",
+            hasDriving: false, driveStart: "", driveEnd: "", pay: "", notes: "",
         });
 
-        // --- Utility Functions ---
-        function mins(t) {
-            if (!t) return null;
-            const [h, m] = t.split(":").map(Number);
-            return h * 60 + m;
-        }
-        function diffH(a, b) {
+        // Helpers
+        const mins = t => { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        const diffH = (a, b) => {
             if (!a || !b) return null;
             const d = mins(b) >= mins(a) ? mins(b) - mins(a) : 1440 - mins(a) + mins(b);
             return +(d / 60).toFixed(2);
-        }
-        function fmtH(h) {
+        };
+        const fmtH = h => {
             if (h == null) return null;
             const hr = Math.floor(h), mn = Math.round((h - hr) * 60);
             return mn > 0 ? `${hr}ω ${mn}λ` : `${hr}ω`;
-        }
-        function fmtDate(d) {
+        };
+        const fmtDate = d => {
             if (!d) return "";
             const [y, m, day] = d.split("-");
             const mo = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
             return `${parseInt(day)} ${mo[parseInt(m)-1]} ${y}`;
-        }
+        };
 
-        // --- Components ---
-        function Label({ children }) {
-            return (
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
-                    color: "rgba(255,255,255,0.32)", textTransform: "uppercase", marginBottom: 9 }}>
-                    {children}
-                </div>
-            );
-        }
+        // UI Components
+        const Field = ({ label, children }) => (
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 9 }}>{label}</div>
+                {children}
+            </div>
+        );
 
-        function Field({ label, children, style }) {
-            return (
-                <div style={{ marginBottom: 24, ...style }}>
-                    {label && <Label>{label}</Label>}
-                    {children}
-                </div>
-            );
-        }
+        const TxtInput = ({ style, ...props }) => (
+            <input {...props} style={{
+                width: "100%", background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)",
+                borderRadius: 14, padding: "14px 16px", color: "#f0f0f5", fontSize: 16, outline: "none", ...style
+            }} />
+        );
 
-        function TxtInput({ style, ...props }) {
-            return (
-                <input {...props} style={{
-                    width: "100%",
-                    background: "rgba(255,255,255,0.055)",
-                    border: "0.5px solid rgba(255,255,255,0.11)",
-                    borderRadius: 14, padding: "14px 16px",
-                    color: "#f0f0f5", fontSize: 16,
-                    fontFamily: "inherit", outline: "none",
-                    ...style,
-                }} />
-            );
-        }
-
-        function TimeBlock({ emoji, title, color, bg, border, startVal, endVal, onStart, onEnd, hasDriving, onToggle }) {
+        const TimeBlock = ({ emoji, title, color, bg, border, startVal, endVal, onStart, onEnd, hasDriving, onToggle }) => {
             const dur = fmtH(diffH(startVal, endVal));
             const isDrive = onToggle !== undefined;
             const showPickers = !isDrive || hasDriving;
 
             return (
-                <div style={{ background: bg, border: `0.5px solid ${border}`, borderRadius: 20, padding: "18px 18px 16px", marginBottom: 16 }}>
+                <div style={{ background: bg, border: `0.5px solid ${border}`, borderRadius: 20, padding: "18px", marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showPickers ? 18 : 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                             <span style={{ fontSize: 22 }}>{emoji}</span>
                             <span style={{ fontSize: 15, fontWeight: 600, color }}>{title}</span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            {!isDrive && dur && (
-                                <span style={{ fontSize: 12, fontWeight: 600, background: `${color}28`, color, borderRadius: 20, padding: "4px 12px" }}>
-                                    {dur}
-                                </span>
-                            )}
-                            {isDrive && (
-                                <button onClick={onToggle} style={{
-                                    border: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
-                                    padding: "6px 16px", borderRadius: 20,
-                                    background: hasDriving ? `${color}28` : "rgba(255,255,255,0.07)",
-                                    color: hasDriving ? color : "rgba(255,255,255,0.32)",
-                                }}>
-                                    {hasDriving ? "✓ Ναι" : "Όχι"}
-                                </button>
-                            )}
-                        </div>
+                        {isDrive ? (
+                            <button onClick={onToggle} style={{ border: "none", background: hasDriving ? `${color}28` : "rgba(255,255,255,0.07)", color: hasDriving ? color : "rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, fontSize: 13 }}>
+                                {hasDriving ? "✓ Ναι" : "Όχι"}
+                            </button>
+                        ) : dur && <span style={{ fontSize: 12, fontWeight: 600, background: `${color}28`, color, borderRadius: 20, padding: "4px 12px" }}>{dur}</span>}
                     </div>
                     {showPickers && (
-                        <>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                                {[["Έναρξη", startVal, onStart], ["Λήξη", endVal, onEnd]].map(([lbl, val, fn]) => (
-                                    <div key={lbl}>
-                                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 7, fontWeight: 500 }}>{lbl}</div>
-                                        <input type="time" value={val} onChange={e => fn(e.target.value)}
-                                            style={{
-                                                width: "100%", background: "rgba(0,0,0,0.22)", border: `0.5px solid ${border}`,
-                                                borderRadius: 13, padding: "12px 14px", color: "#f0f0f5", fontSize: 17, outline: "none",
-                                            }} />
-                                    </div>
-                                ))}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                            <div>
+                                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginBottom: 5 }}>Έναρξη</div>
+                                <input type="time" value={startVal} onChange={e => onStart(e.target.value)} style={{ width: "100%", background: "rgba(0,0,0,0.2)", border: `0.5px solid ${border}`, borderRadius: 12, padding: 12, color: "#fff", outline: "none" }} />
                             </div>
-                        </>
+                            <div>
+                                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginBottom: 5 }}>Λήξη</div>
+                                <input type="time" value={endVal} onChange={e => onEnd(e.target.value)} style={{ width: "100%", background: "rgba(0,0,0,0.2)", border: `0.5px solid ${border}`, borderRadius: 12, padding: 12, color: "#fff", outline: "none" }} />
+                            </div>
+                        </div>
                     )}
                 </div>
             );
-        }
+        };
 
-        function NavBar({ onBack, title, actions }) {
-            return (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "54px 20px 22px" }}>
-                    <button onClick={onBack} style={{
-                        border: "none", background: "rgba(255,255,255,0.08)", color: "#f0f0f5",
-                        borderRadius: 12, padding: "9px 17px", fontSize: 14, fontWeight: 500,
-                    }}>← Πίσω</button>
-                    <span style={{ fontSize: 17, fontWeight: 600 }}>{title}</span>
-                    <div style={{ display: "flex", gap: 8 }}>{actions}</div>
-                </div>
-            );
-        }
-
-        // --- Main App ---
         function App() {
-            const [shifts, setShifts] = useState(() => {
-                try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
-            });
+            const [shifts, setShifts] = useState(() => JSON.parse(localStorage.getItem(STORAGE_KEY)) || []);
             const [view, setView] = useState("list");
             const [form, setForm] = useState(blank());
-            const [editId, setEditId] = useState(null);
             const [selected, setSelected] = useState(null);
-            const [tab, setTab] = useState("shifts");
 
             useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts)); }, [shifts]);
 
-            const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-            const toggleGame = id => set("games", form.games.includes(id) ? form.games.filter(x => x !== id) : [...form.games, id]);
-
-            function saveShift() {
+            const save = () => {
                 const workH = diffH(form.workStart, form.workEnd);
                 const driveH = form.hasDriving ? diffH(form.driveStart, form.driveEnd) : null;
-                const entry = { ...form, id: editId || Date.now(), workH, driveH };
-                setShifts(s => editId ? s.map(x => x.id === editId ? entry : x) : [entry, ...s]);
-                setEditId(null); setForm(blank()); setView("list");
-            }
-            function delShift(id) { setShifts(s => s.filter(x => x.id !== id)); setSelected(null); setView("list"); }
-            function editShift(s) { setForm({ ...s }); setEditId(s.id); setView("add"); }
-
-            const totPay   = shifts.reduce((a, s) => a + (parseFloat(s.pay) || 0), 0);
-            const totWork  = shifts.reduce((a, s) => a + (s.workH  || 0), 0);
-            const totDrive = shifts.reduce((a, s) => a + (s.driveH || 0), 0);
-            const valid = form.location.trim() && form.date;
+                const entry = { ...form, id: Date.now(), workH, driveH };
+                setShifts([entry, ...shifts]);
+                setView("list");
+            };
 
             return (
-                <div style={{
-                    fontFamily: "-apple-system, sans-serif", background: "#0c0c14", 
-                    minHeight: "100vh", color: "#f0f0f5", maxWidth: 430, margin: "0 auto",
-                }}>
-                    <style>{`
-                        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-                        input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.35}
-                        input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.35}
-                    `}</style>
-
+                <div style={{ fontFamily: "-apple-system, sans-serif", color: "#f0f0f5", maxWidth: 430, margin: "0 auto", paddingBottom: 100 }}>
                     {view === "list" && (
-                        <div className="fade">
-                            <div style={{ padding: "56px 22px 0" }}>
-                                <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>Οι βάρδιές μου</div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 26 }}>
-                                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 18, padding: "13px 14px" }}>
-                                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)" }}>ΣΥΝΟΛΟ</div>
-                                        <div style={{ fontSize: 19, fontWeight: 700, color: "#7dffb3" }}>€{totPay.toFixed(0)}</div>
+                        <div style={{ padding: 22 }}>
+                            <h1 style={{ fontSize: 32, fontWeight: 700, marginTop: 40, marginBottom: 24 }}>Βάρδιες</h1>
+                            {shifts.map(s => (
+                                <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: 18, marginBottom: 12 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                                        <div style={{ fontWeight:600 }}>📍 {s.location}</div>
+                                        <div style={{ color: "#7dffb3", fontWeight: 700 }}>€{s.pay}</div>
                                     </div>
-                                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 18, padding: "13px 14px" }}>
-                                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)" }}>ΕΡΓΑΣΙΑ</div>
-                                        <div style={{ fontSize: 19, fontWeight: 700, color: "#b09fff" }}>{fmtH(totWork) || "—"}</div>
-                                    </div>
-                                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 18, padding: "13px 14px" }}>
-                                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)" }}>ΟΔΗΓΗΣΗ</div>
-                                        <div style={{ fontSize: 19, fontWeight: 700, color: "#ffb347" }}>{fmtH(totDrive) || "—"}</div>
-                                    </div>
+                                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>{fmtDate(s.date)}</div>
                                 </div>
-                                
-                                {shifts.map(s => (
-                                    <div key={s.id} onClick={() => { setSelected(s); setView("detail"); }}
-                                        style={{ background: "rgba(255,255,255,0.04)", borderRadius: 22, padding: "18px 20px", marginBottom: 12 }}>
-                                        <div style={{ display:"flex", justifyContent:"space-between" }}>
-                                            <div style={{ fontWeight:600 }}>📍 {s.location}</div>
-                                            <div style={{ fontWeight:700, color:"#7dffb3" }}>€{parseFloat(s.pay || 0).toFixed(0)}</div>
-                                        </div>
-                                        <div style={{ fontSize:12, color:"rgba(255,255,255,0.3)" }}>{fmtDate(s.date)}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <button onClick={() => { setForm(blank()); setEditId(null); setView("add"); }}
-                                style={{ position:"fixed", bottom:38, right:24, width:62, height:62, borderRadius:"50%", background:"#8264ff", color:"#fff", fontSize:32, border:"none" }}>+</button>
+                            ))}
+                            <button onClick={() => { setForm(blank()); setView("add"); }} style={{ position: "fixed", bottom: 30, right: 24, width: 64, height: 64, borderRadius: 32, background: "#8264ff", color: "#fff", fontSize: 32, border: "none", boxShadow: "0 10px 20px rgba(0,0,0,0.3)" }}>+</button>
                         </div>
                     )}
 
                     {view === "add" && (
-                        <div>
-                            <NavBar onBack={() => setView("list")} title="Νέα Βάρδια" actions={[]} />
-                            <div style={{ padding: "0 22px 100px" }}>
-                                <Field label="Ημερομηνία"><TxtInput type="date" value={form.date} onChange={e => set("date", e.target.value)} /></Field>
-                                <Field label="Τοποθεσία"><TxtInput placeholder="Πού;" value={form.location} onChange={e => set("location", e.target.value)} /></Field>
-                                
-                                <TimeBlock emoji="🎮" title="Εργασία" color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)"
-                                    startVal={form.workStart} endVal={form.workEnd} onStart={v => set("workStart", v)} onEnd={v => set("workEnd", v)} />
-                                
-                                <Field label="Αμοιβή"><TxtInput type="number" value={form.pay} onChange={e => set("pay", e.target.value)} /></Field>
-                                <button onClick={saveShift} disabled={!valid} style={{ width:"100%", padding:18, borderRadius:18, background: valid ? "#8264ff" : "#333", border:"none", color:"#fff", fontWeight:600 }}>Αποθήκευση</button>
+                        <div style={{ padding: 22 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop: 40, marginBottom: 30 }}>
+                                <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#8264ff" }}>← Πίσω</button>
+                                <h2 style={{ fontWeight: 700 }}>Νέα Βάρδια</h2>
+                                <div style={{ width: 40 }}></div>
                             </div>
+
+                            <Field label="Ημερομηνία"><TxtInput type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} /></Field>
+                            <Field label="Τοποθεσία"><TxtInput placeholder="Πού;" value={form.location} onChange={e => setForm({...form, location: e.target.value})} /></Field>
+                            
+                            <Field label="Παιχνίδια">
+                                <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                                    {GAMES.map(g => (
+                                        <button key={g.id} onClick={() => {
+                                            const gs = form.games.includes(g.id) ? form.games.filter(x => x !== g.id) : [...form.games, g.id];
+                                            setForm({...form, games: gs});
+                                        }} style={{ padding: "8px 12px", borderRadius: 15, border: "0.5px solid rgba(255,255,255,0.1)", background: form.games.includes(g.id) ? "rgba(130,100,255,0.2)" : "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13 }}>
+                                            {g.emoji} {g.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </Field>
+
+                            <TimeBlock emoji="🎮" title="Εργασία" color="#b09fff" bg="rgba(130,100,255,0.07)" border="rgba(130,100,255,0.2)" startVal={form.workStart} endVal={form.workEnd} onStart={v => setForm({...form, workStart:v})} onEnd={v => setForm({...form, workEnd:v})} />
+                            
+                            <TimeBlock emoji="🚗" title="Οδήγηση" color="#ffb347" bg="rgba(255,180,60,0.07)" border="rgba(255,180,60,0.2)" startVal={form.driveStart} endVal={form.driveEnd} onStart={v => setForm({...form, driveStart:v})} onEnd={v => setForm({...form, driveEnd:v})} hasDriving={form.hasDriving} onToggle={() => setForm({...form, hasDriving: !form.hasDriving})} />
+
+                            <Field label="Αμοιβή (€)"><TxtInput type="number" value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} /></Field>
+                            
+                            <button onClick={save} style={{ width: "100%", padding: 18, borderRadius: 16, background: "#8264ff", border: "none", color: "#fff", fontWeight: 700, marginTop: 20 }}>Αποθήκευση</button>
                         </div>
                     )}
 
                     {view === "detail" && selected && (
-                        <div>
-                            <NavBar onBack={() => setView("list")} title="Λεπτομέρειες" actions={[
-                                <button key="d" onClick={() => delShift(selected.id)} style={{color:"#ff6b80", background:"none", border:"none"}}>Διαγραφή</button>
-                            ]} />
-                            <div style={{ padding:"22px" }}>
-                                <h1 style={{ fontSize:28 }}>{selected.location}</h1>
-                                <p style={{ color:"#7dffb3", fontSize:40, fontWeight:700 }}>€{parseFloat(selected.pay || 0).toFixed(2)}</p>
+                        <div style={{ padding: 22 }}>
+                            <button onClick={() => setView("list")} style={{ marginTop: 40, color: "#8264ff", background: "none", border: "none" }}>← Πίσω</button>
+                            <h1 style={{ fontSize: 32, marginTop: 20 }}>📍 {selected.location}</h1>
+                            <div style={{ fontSize: 48, fontWeight: 800, color: "#7dffb3", margin: "20px 0" }}>€{selected.pay}</div>
+                            <div style={{ background: "rgba(255,255,255,0.05)", padding: 20, borderRadius: 20 }}>
+                                <div style={{ marginBottom: 10 }}>🎮 Εργασία: {fmtH(selected.workH)}</div>
+                                {selected.hasDriving && <div>🚗 Οδήγηση: {fmtH(selected.driveH)}</div>}
                             </div>
+                            <button onClick={() => { setShifts(shifts.filter(x => x.id !== selected.id)); setView("list"); }} style={{ marginTop: 40, color: "#ff6b80", background: "none", border: "none" }}>Διαγραφή βάρδιας</button>
                         </div>
                     )}
                 </div>
